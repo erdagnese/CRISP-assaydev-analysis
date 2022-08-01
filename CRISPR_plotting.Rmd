@@ -1,0 +1,819 @@
+---
+title: "Sp_analysis"
+author: "Erin D'Agnese"
+date: "4/14/2022"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r libraries}
+library(tidyverse)
+library(ggplot2)
+library(here)
+theme_set(theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
+panel.background = element_blank(), axis.line = element_line(colour = "black")))
+library(RColorBrewer)
+library(jcolors)
+#palette <- c('#e6194b', '#3cb44b', '#ffe119', '#4363d8', '#f58231', '#911eb4', '#46f0f0', '#f032e6', '#bcf60c', '#fabebe', '#008080', '#e6beff', '#9a6324', '#fffac8', '#800000', '#aaffc3', '#808000', '#ffd8b1', '#000075', '#808080', '#ffffff', '#000000')
+```
+
+
+```{r import data}
+Sp_test_amp <- read.csv(here("20220615_Plamp_sens_amp.csv"))
+Sp_test_map <- read.csv(here("20220615_Plamp_sens_map.csv"))
+
+Pl_spec_amp <- read.csv(here("20220617_Plamp_spec_amp.csv"))
+Pl_spec_map <- read.csv(here("20220617_Plamp_spec_map.csv"))
+
+Rl_spec_amp <- read.csv(here("20220617_Rivlamp_spec_amp.csv"))
+Rl_spec_map <- read.csv(here("20220617_Rivlamp_spec_map.csv"))
+
+Rl_sens_amp <- read.csv(here("20220630_Rivlamp_sens_amp.csv"))
+Rl_sens_map <- read.csv(here("20220630_Rivlamp_sens_map.csv"))
+
+B_test_amp <- read.csv(here("20220608_Btrt_sens_amp.csv"))
+B_test_map <- read.csv(here("20220608_Btrt_sens_map.csv"))
+
+Bt_spec_amp <- read.csv(here("20220517_Btrt_ITS1_2_spec_amp.csv"))
+Bt_spec_map <- read.csv(here("20220517_Btrt_ITS1_2_spec_map.csv"))
+
+gb_amp <- read.csv(here("20220707_gBlock_amp.csv"))
+gb_map <- read.csv(here("20220707_gBlock_map.csv"))
+gb_copies <- read.csv(here("20220707_gBlock_copies.csv"))
+
+gb_redo_amp <- read.csv(here("20220714_Bt_gblock_redo_amp.csv"))
+gb_redo_map <- read.csv(here("20220714_Bt_gblock_redo_map.csv"))
+```
+
+
+
+```{r create a time column based on Ct}
+Sp_test_amp$time <- Sp_test_amp$Cycle / 2
+B_test_amp$time <- B_test_amp$Cycle / 2
+Bt_spec_amp$time <- Bt_spec_amp$Cycle / 2
+Pl_spec_amp$time <- Pl_spec_amp$Cycle / 2
+Rl_spec_amp$time <- Rl_spec_amp$Cycle / 2
+Rl_sens_amp$time <- Rl_sens_amp$Cycle / 2
+gb_amp$time <- gb_amp$Cycle / 2
+gb_redo_amp$time <- gb_redo_amp$Cycle / 2
+```
+
+format mapping file
+```{r setting up the mapping and amp data into one df}
+Sp_test_map %>% mutate(sample = paste(Sample.Name, Target.Name)) %>%
+  subset(select= -c(Sample.Name,Target.Name)) %>% 
+  subset( sample != " ") -> Sp_test_map
+
+Pl_spec_map %>% mutate(sample = Sample.Name)  %>%
+  subset(select= -c(Sample.Name))-> Pl_spec_map
+
+Rl_spec_map %>% mutate(sample = Sample.Name)  %>%
+  subset(select= -c(Sample.Name))-> Rl_spec_map
+
+Rl_sens_map %>% mutate(sample = paste(Sample.Name, Target.Name)) %>%
+  #subset(select= -c(Sample.Name,Target.Name)) %>% 
+  subset( sample != " ")-> Rl_sens_map
+
+B_test_map %>% 
+  mutate(sample = paste(Sample.Name, Target.Name)) %>%
+  subset(select= -c(Sample.Name,Target.Name)) %>% 
+  subset( sample != " ") -> B_test_map
+
+Bt_spec_map %>% mutate(sample = Sample.Name)  %>%
+  subset(select= -c(Sample.Name))-> Bt_spec_map
+
+gb_map %>%
+  mutate(sample = paste(Sample.Name, Target.Name)) %>%
+  subset(select= -c(Sample.Name,Target.Name)) %>% 
+  subset( sample != " ") -> gb_map
+
+gb_redo_map %>%
+  mutate(sample = paste(Sample.Name, Target.Name)) %>%
+  subset(select= -c(Sample.Name,Target.Name)) %>% 
+  subset( sample != " ") -> gb_redo_map
+
+gb_copies %>%
+  mutate(sample = paste(Sample.Name, Target.Name)) %>%
+  subset( sample != " ") -> gb_copies
+
+
+```
+
+
+```{r fixing dataframes}
+inner_join(gb_map, gb_copies, by = "sample") -> gb_map2
+inner_join(gb_redo_map, gb_copies, by = "sample") -> gb_redo_map2
+```
+
+```{r}
+inner_join(Sp_test_amp, Sp_test_map, by = "Well") -> Sp_test
+inner_join(B_test_amp, B_test_map, by = "Well") -> Bt_test
+inner_join(Bt_spec_amp, Bt_spec_map, by = "Well") -> Bt_spec
+inner_join(Pl_spec_amp, Pl_spec_map, by = "Well") -> Pl_spec
+inner_join(Rl_spec_amp, Rl_spec_map, by = "Well") -> Rl_spec
+inner_join(Rl_sens_amp, Rl_sens_map, by = "Well") -> Rl_sens
+inner_join(gb_amp, gb_map2, by = "Well") -> gb_sens
+inner_join(gb_redo_amp, gb_redo_map2, by = "Well") -> gb_redo_sens
+
+Sp_test %>% mutate(across(where(is.character), str_remove_all, pattern = fixed(" "))) -> Sp_test
+
+Bt_test %>% mutate(across(where(is.character), str_remove_all, pattern = fixed(" "))) -> Bt_test
+
+Bt_spec %>% mutate(across(where(is.character), str_remove_all, pattern = fixed(" "))) -> Bt_spec
+
+Pl_spec %>% mutate(across(where(is.character), str_remove_all, pattern = fixed(" "))) %>% drop_na() -> Pl_spec
+
+Rl_spec %>% mutate(across(where(is.character), 
+                          str_remove_all, pattern = fixed(" "))) %>%
+  drop_na() -> Rl_spec 
+
+Rl_sens %>% mutate(across(where(is.character), str_remove_all, pattern = fixed(" "))) -> Rl_sens 
+
+gb_sens %>% mutate(across(where(is.character), str_remove_all, pattern = fixed(" "))) -> gb_sens
+
+gb_redo_sens %>% mutate(across(where(is.character), str_remove_all, pattern = fixed(" "))) -> gb_redo_sens
+```
+
+```{r}
+ggplot(gb_sens, aes(x=Cycle, y=FAM, color = Sample.Name, shape= Target.Name)) + geom_point()
+```
+
+```{r}
+ggplot(Bt_test, aes(x=Cycle, y=FAM, color = sample)) + geom_point()
+
+```
+
+Make a df for each species in the Ggblock trail
+```{r}
+gb_sens %>%
+  filter(str_detect(sample, "Etri")) -> gb_Plamp
+gb_sens %>%
+  filter(str_detect(sample, "S.con")) -> gb_Btrt
+gb_sens%>%
+  filter(str_detect(sample, "L.ayr")) -> gb_Rlamp
+
+
+```
+
+
+calculating background from NTCs
+```{r pull out NTC values to calc background}
+#take average of NTC
+
+Sp_test %>% filter(sample == "NTC") -> Sp_test_NTC
+Bt_test %>% filter(sample == "NTC") -> Bt_test_NTC
+Rl_spec %>% filter(sample == "NTC") -> Rl_spec_NTC
+Rl_sens %>% filter(sample == "NTC") -> Rl_sens_NTC
+gb_Btrt %>% filter(Sample.Name == "NTC") -> gb_Btrt_NTC
+gb_redo_sens %>% filter(Sample.Name == "NTC") -> gb_redo_sens_NTC
+```
+
+```{r using the function to calc background for correction}
+#made this a function 'background_fl' but requires a NTC subset
+#as.tbl(Sp_sens1_NTC) %>% 
+#  bind_rows(mutate(Sp_sens1_NTC, Cycle=NA, sample=NA)) %>% 
+#  bind_rows(mutate(Sp_sens1_NTC, Well=NA)) %>% 
+#  group_by(Cycle) %>% 
+#  summarise_all(c("mean", "sd")) %>%
+#  subset(select = c(Cycle, FAM_mean, FAM_sd)) -> Sp_sens1_NTC_summary
+
+#Sp_sens1_NTC_summary %>% rename(BGRn_mean = Rn_mean) %>%
+#  rename(BGRn_sd = Rn_sd) -> Sp_sens1_background
+
+source(here("background_fl.R"))
+
+
+Sp_test_NTC_bg <- background_fl(Sp_test_NTC)
+
+Bt_test_NTC_bg <- background_fl(Bt_test_NTC)
+
+Rl_spec_NTC_bg <- background_fl(Rl_spec_NTC)
+
+Rl_sens_NTC_bg <- background_fl(Rl_sens_NTC)
+
+gb_Btrt_NTC_bg <- background_fl(gb_Btrt_NTC)
+
+gb_redo_sens_NTC_bg <- background_fl(gb_redo_sens_NTC)
+
+
+#join the mean values with the cycle numbers in the main data
+
+left_join(Sp_test, Sp_test_NTC_bg, by = "Cycle") -> Sp_test_total
+
+left_join(Bt_test, Bt_test_NTC_bg, by = "Cycle") -> Bt_test_total
+
+left_join(Rl_spec, Rl_spec_NTC_bg, by = "Cycle") -> Rl_spec_total
+
+left_join(Rl_sens, Rl_sens_NTC_bg, by = "Cycle") -> Rl_sens_total
+
+left_join(gb_Btrt, gb_Btrt_NTC_bg, by = "Cycle") -> gb_Btrt_total
+
+```
+
+
+
+
+Let's try finding the derivative for each sample and the NTC by using the cumulative sum of the 
+change in Y over the change in x - use this to determine detections/non-detections for the specificity
+```{r derivative}
+Pl_spec %>%
+  group_by(Well) %>%
+  mutate(FAMcs = cumsum(FAM)) %>%
+  mutate(FAMfinal = last(FAMcs))-> Pl_spec_FAMcs
+
+Pl_spec_FAMcs %>%
+  filter(!str_detect(sample, "GR")) -> Pl_spec_tmp
+
+Pl_spec_FAMcs %>%   
+  select(Well, sample, FAMcs) %>%
+  group_by(Well, sample) %>%
+  summarise(FAMfinal = sum(FAMcs)) %>%
+  mutate(detect = case_when(FAMfinal > 0 ~"Yes",
+                            FAMfinal <= 0 ~ "No")) -> Pl_spec_detect
+
+
+
+
+ggplot(Pl_spec_tmp, aes(x=time, y=FAMcs, color=sample)) + geom_point() +
+  ylab(expression("Cumulative Sum of change of Fluorescence"~(Delta *"RFU"))) +
+  xlab("Time (min)")
+
+
+
+```
+
+```{r}
+ggplot(Pl_spec_tmp, aes(x=time, y=FAM, color=sample)) +
+  geom_smooth()+
+  geom_hline(yintercept = thresh, linetype = "dashed", color = "grey36", size = 1) +
+  annotate("text", x = 60, y= thresh, vjust = 1, label = "Threshold", size = 2.5) +
+  ylab("Flourescence Intensity") +
+  xlab("Time (min)")
+```
+
+
+```{r}
+Rl_spec %>% group_by(Well) %>%
+  mutate(FAMcs = cumsum(FAM)) %>%
+  mutate(FAMfinal = last(FAMcs))-> Rl_spec_FAMcs
+
+Rl_spec_FAMcs %>%   
+  select(Well, sample, FAMcs) %>%
+  group_by(Well, sample) %>%
+  summarise(FAMfinal = sum(FAMcs)) %>%
+  mutate(detect = case_when(FAMfinal > 0 ~"Yes",
+                            FAMfinal <= 0 ~ "No")) -> Rl_spec_detect
+
+
+Rl_spec_FAMcs %>%
+  filter(!str_detect(sample, "GR")) -> Rl_spec_tmp
+
+ggplot(Rl_spec_tmp, aes(x=time, y=FAMcs, color=sample)) + geom_point() +
+  ylab(expression("Cumulative Sum of change of Fluorescence"~(Delta *"RFU"))) +
+  xlab("Time (min)")
+
+
+
+```
+
+```{r}
+ggplot(Rl_spec_tmp, aes(x=time, y=FAM, color=sample)) +
+  geom_smooth()+
+  geom_hline(yintercept = thresh, linetype = "dashed", color = "grey36", size = 1) +
+  annotate("text", x = 60, y= thresh, vjust = 1, label = "Threshold", size = 2.5) +
+  ylab("Flourescence Intensity") +
+  xlab("Time (min)")
+```
+
+
+```{r}
+Bt_spec %>%
+  group_by(Well) %>%
+  mutate(FAMcs = cumsum(FAM)) %>%
+  mutate(FAMfinal = last(FAMcs))-> Bt_spec_FAMcs
+
+Bt_spec_FAMcs %>%   
+  select(Well, sample, FAMcs) %>%
+  group_by(Well, sample) %>%
+  summarise(FAMfinal = sum(FAMcs)) %>%
+  mutate(detect = case_when(FAMfinal > 0 ~"Yes",
+                            FAMfinal <= 0 ~ "No")) -> Bt_spec_detect
+
+ggplot(Bt_spec_FAMcs, aes(x=time, y=FAMcs, color=sample)) + geom_point() +
+  ylab(expression("Cumulative Sum of change of Fluorescence"~(Delta *"RFU"))) +
+  xlab("Time (min)")
+
+```
+specificity plot with zero as the threshold
+```{r}
+ggplot(Bt_spec, aes(x=time, y=FAM, color=sample)) +
+  geom_smooth()+
+  geom_hline(yintercept = thresh, linetype = "dashed", color = "grey36", size = 1) +
+  annotate("text", x = 60, y= thresh, vjust = 1, label = "Threshold", size = 2.5) +
+  ylab("Flourescence Intensity") +
+  xlab("Time (min)")
+```
+
+
+
+```{r}
+#let's do it by assay
+Sp_test_FAMcs %>% 
+  filter(str_detect(Target.Name, "P.lamp_crRNA_1")) -> Plamp_FAMcs
+Sp_test_FAMcs %>% 
+  filter(str_detect(Target.Name, "R.lamp_crRNA_1")) -> Rlamp_FAMcs
+#Sp_test_FAMcs %>% 
+#  filter(str_detect(Target.Name, "B.trt_ITS1_crRNA_1")) -> Btrt_ITS1_1_FAMcs
+#Sp_test_FAMcs %>% 
+#  filter(str_detect(Target.Name, "B.trt_ITS1_crRNA_2")) -> Btrt_ITS1_2_FAMcs
+#Sp_test_FAMcs %>% 
+#  filter(str_detect(Target.Name, "B.trt_Wilcox_crRNA_1")) -> Btrt_Wil_FAMcs
+
+Plamp_FAMcs %>%   
+  select(Well, sample, FAMcs) %>%
+  group_by(Well, sample) %>%
+  summarise(FAMfinal = sum(FAMcs)) %>%
+  mutate(detect = case_when(FAMfinal > 0 ~"Yes",
+                            FAMfinal <= 0 ~ "No")) -> Plamp_test_detect
+
+Rlamp_FAMcs %>%   
+  select(Well, sample, FAMcs) %>%
+  group_by(Well, sample) %>%
+  summarise(FAMfinal = sum(FAMcs)) %>%
+  mutate(detect = case_when(FAMfinal > 0 ~"Yes",
+                            FAMfinal <= 0 ~ "No")) -> Rlamp_test_detect
+
+```
+
+
+```{r}
+ggplot(Plamp_FAMcs, aes(x=Cycle, y=FAMcs, color=sample)) + geom_point() +
+ ylab(expression("Cumulative Sum of change of Fluorescence"~(Delta *"RFU"))) +
+  xlab("Time (min)")
+    #+ geom_smooth()
+```
+So there is one R.lamprey species that is amplifying with this assay
+
+```{r}
+ggplot(Plamp_FAMcs, aes(x=Cycle, y=FAM, color=sample)) + geom_point() #+ geom_smooth()
+
+```
+
+
+```{r}
+ggplot(Rlamp_FAMcs, aes(x=Cycle, y=FAMcs, color=sample)) + geom_point() +
+ ylab(expression("Cumulative Sum of change of Fluorescence"~(Delta *"RFU"))) +
+  xlab("Time (min)")
+
+```
+
+This one has 2 of the 3 river lamprey and nothing else amplifying! Yahoo
+
+```{r}
+ggplot(Rlamp_FAMcs, aes(x=Cycle, y=FAM, color=sample)) + geom_point() #+ geom_smooth()
+
+```
+
+```{r}
+ggplot(Btrt_ITS1_1_FAMcs, aes(x=Cycle, y=FAMcs, color=sample)) + geom_point() #+ geom_smooth()
+
+```
+Two of the three Bull trout amplified well and the third one if the only other isolate that also worked!
+
+```{r}
+ggplot(Btrt_ITS1_1_FAMcs, aes(x=Cycle, y=FAM, color=sample)) + geom_point() #+ geom_smooth()
+
+```
+
+```{r}
+ggplot(Btrt_ITS1_2_FAMcs, aes(x=Cycle, y=FAMcs, color=sample)) + geom_point() #+ geom_smooth()
+
+```
+This one only has Bull trout working as well!
+
+```{r}
+ggplot(Btrt_ITS1_2_FAMcs, aes(x=Cycle, y=FAM, color=sample)) + geom_point() #+ geom_smooth()
+```
+
+
+
+```{r}
+ggplot(Btrt_Wil_FAMcs, aes(x=Cycle, y=FAMcs, color=sample)) + geom_point() #+ geom_smooth()
+```
+Oh darn, the Dolly varden also amplified
+
+
+```{r}
+ggplot(Btrt_Wil_FAMcs, aes(x=Cycle, y=FAM, color=sample)) + geom_point() #+ geom_smooth()
+```
+
+
+```{r}
+
+```
+One of the Bull trout amplified well, the other two also had positive slopes and nothing else did
+
+```{r}
+
+```
+
+
+combine the detections and export to make a table with metadata
+```{r}
+rbind(Sp_eDNA1_detections, Sp_eDNA2_detections) -> Sp_eDNA_detections
+
+inner_join(Sp_eDNA_detections,Sp_qPCR_results, keep=TRUE) -> Sp_eDNA_qPCR
+
+write.csv(Sp_eDNA_detections, "Sp_Carson_eDNA_cumsum.csv", row.names = FALSE)
+
+Sp_eDNA_qPCR %>%
+  mutate(qPCR_det = case_when(CT == "No Amp" ~ "FALSE",
+                              CT!= "No Amp" ~ "TRUE")) -> Sp_eDNA_qPCR
+         
+
+ggplot(Sp_eDNA_qPCR, aes(x=Quantity, y=FAMfinal))+
+  geom_point()
+
+```
+
+
+
+Find the highest threshold for the sensitivity data
+```{r}
+Sp_test_total %>% 
+  mutate(CorFl = FAM - BG_cor) %>%
+  mutate(CycleTh = ((10*BG_sd) + BG_mean)) %>%
+  mutate(CorCt = case_when(CorFl > CycleTh ~ "Y", 
+         CorFl <= CycleTh ~ "N")) -> Sp_test_BgCor
+
+
+MaxTh <- max(Sp_test_BgCor$CycleTh)  
+AvgTh <- mean(Sp_test_BgCor$CycleTh)
+
+#if the MaxTh is a negative value assign it to zero
+MaxTh[MaxTh <= 0] <- 0
+
+#use this as the threshold in the graph
+#make a BgCor detection based on when it crosses MaxTh
+Sp_test_BgCor %>% 
+  mutate(MaxCycTh = case_when(CorFl > MaxTh ~ "Y",
+                              CorFl <= MaxTh ~ "N")) -> Sp_test_BgCor
+Sp_test_BgCor %>% 
+  mutate
+
+
+
+Bt_test_total %>% 
+  mutate(CorFl = FAM - BG_cor) %>%
+  mutate(CycleTh = ((10*BG_sd) + BG_mean)) %>%
+  mutate(CorCt = case_when(CorFl > CycleTh ~ "Y", 
+         CorFl <= CycleTh ~ "N")) -> Bt_BgCor
+
+MaxTh <- max(Bt_BgCor$CycleTh)
+AvgTh <- mean(Bt_BgCor$CycleTh)
+
+gb_Btrt_total %>% 
+  mutate(CorFl = FAM - BG_cor) %>%
+  mutate(CycleTh = ((10*BG_sd) + BG_mean)) %>%
+  mutate(CorCt = case_when(CorFl > CycleTh ~ "Y", 
+         CorFl <= CycleTh ~ "N")) -> gb_Btrt_Bgcor
+
+MaxTh <- max(gb_Btrt_Bgcor$CycleTh)
+AvgTh <- mean(gb_Btrt_Bgcor$CycleTh)
+```
+
+
+Using 0 as the threshold
+```{r}
+Rl_spec_total %>%
+   mutate(Detect = case_when(FAM > 0 ~ "Y", 
+         FAM <= 0 ~ "N")) -> Rl_spec_Ct
+
+Sp_test_total %>%
+   mutate(Detect = case_when(FAM > 0 ~ "Y", 
+         FAM <= 0 ~ "N")) -> Sp_test_Ct
+
+Bt_test_total %>%
+   mutate(Detect = case_when(FAM > 0 ~ "Y", 
+         FAM <= 0 ~ "N")) -> Bt_test_Ct
+thresh = 0  
+
+Rl_sens_total %>% 
+  mutate(Detect = case_when(FAM > 0 ~ "Y", 
+         FAM <= 0 ~ "N")) -> Rl_sens_Ct
+
+gb_Btrt %>% mutate(Detect = case_when(FAM > 0 ~ 1, 
+         FAM <= 0 ~ 0)) -> gb_Btrt_Ct
+
+gb_Plamp %>% mutate(Detect = case_when(FAM > 0 ~ 1, 
+         FAM <= 0 ~ 0)) -> gb_Plamp_Ct
+
+gb_Rlamp %>% mutate(Detect = case_when(FAM > 0 ~ 1, 
+         FAM <= 0 ~ 0)) -> gb_Rlamp_Ct
+
+gb_redo_sens %>% mutate(Detect = case_when(FAM > 0 ~ 1, 
+         FAM <= 0 ~ 0)) -> gb_Btrt_redo_Ct
+
+```
+
+Bull trout sensitivity plot
+```{r}
+ggplot(Bt_test_Ct, aes(x=time, y=FAM, color=sample)) +
+  geom_smooth()+
+  geom_hline(yintercept = thresh, linetype = "dashed", color = "grey36", size = 1) +
+  annotate("text", x = 60, y= thresh, vjust = 1, label = "Threshold", size = 2.5) +
+  ylab("Flourescence Intensity") +
+  xlab("Time (min)") +
+  ggtitle("Bull trout tissue sensitivity test")
+```
+
+Pacific lamprey sensitivity plot
+```{r}
+ggplot(Sp_test_Ct, aes(x=time, y=FAM, color=sample)) +
+  geom_smooth()+
+  geom_hline(yintercept = thresh, linetype = "dashed", color = "grey36", size = 1) +
+  annotate("text", x = 60, y= thresh, vjust = 1, label = "Threshold", size = 2.5) +
+  ylab("Flourescence Intensity") +
+  xlab("Time (min)")
+```
+
+
+River lamprey sensitivity plot
+```{r}
+ggplot(Rl_sens_Ct, aes(x=time, y=FAM, color=sample)) +
+  geom_smooth()+
+  geom_hline(yintercept = thresh, linetype = "dashed", color = "grey36", size = 1) +
+  annotate("text", x = 60, y= thresh, vjust = 1, label = "Threshold", size = 2.5) +
+  ylab("Flourescence Intensity") +
+  xlab("Time (min)") 
+
+```
+
+Gblock sensitivity plots
+```{r}
+ggplot(gb_Btrt_Ct, aes(x=time, y=FAM, color=sample)) +
+  geom_smooth()+
+  geom_hline(yintercept = thresh, linetype = "dashed", color = "grey36", size = 1) +
+  annotate("text", x = 60, y= thresh, vjust = 1, label = "Threshold", size = 2.5) +
+  ylab("Flourescence Intensity") +
+  xlab("Time (min)") +
+  ggtitle("Initial Bull trout gblock test")
+
+```
+
+```{r}
+ggplot(gb_Btrt_redo_Ct, aes(x=time, y=FAM, color=sample)) +
+  geom_smooth()+
+  geom_hline(yintercept = thresh, linetype = "dashed", color = "grey36", size = 1) +
+  annotate("text", x = 60, y= thresh, vjust = 1, label = "Threshold", size = 2.5) +
+  ylab("Flourescence Intensity") +
+  xlab("Time (min)") +
+  ggtitle("Redo of Bull trout gBlock test")
+```
+plot the background corrected FAM for the gblock Bull trout
+```{r}
+
+
+ggplot(gb_Btrt_Bgcor, aes(x=time, y=CorFl, color=sample)) +
+  geom_smooth()+
+  geom_hline(yintercept = AvgTh, linetype = "dashed", color = "grey36", size = 1) +
+  annotate("text", x = 60, y= thresh, vjust = 1, label = "Threshold", size = 2.5) +
+  ylab("Flourescence Intensity") +
+  xlab("Time (min)") +
+  ggtitle("Background corrected Initial Bull trout gblock test")
+```
+
+
+```{r}
+ggplot(gb_Plamp_Ct, aes(x=time, y=FAM, color=sample)) +
+  geom_smooth()+
+  geom_hline(yintercept = thresh, linetype = "dashed", color = "grey36", size = 1) +
+  annotate("text", x = 60, y= thresh, vjust = 1, label = "Threshold", size = 2.5) +
+  ylab("Flourescence Intensity") +
+  xlab("Time (min)")
+```
+river lamprey gblock plot
+```{r}
+ggplot(gb_Rlamp_Ct, aes(x=time, y=FAM, color=sample)) +
+  geom_smooth()+
+  geom_hline(yintercept = thresh, linetype = "dashed", color = "grey36", size = 1) +
+  annotate("text", x = 60, y= thresh, vjust = 1, label = "Threshold", size = 2.5) +
+  ylab("Flourescence Intensity") +
+  xlab("Time (min)")
+```
+
+```{r}
+#find the first time a sample crosses the 0 threshold
+Rl_sens_total %>%
+  mutate(tissue = case_when(
+    str_detect(sample, "L.ayr_2") ~ "L.ayresii - UWBM",
+    str_detect(sample, "NOAA") ~ "L.ayresii - NOAA",
+    str_detect(sample, "Sk5-27") ~ "L.ayresii - Skagit-USGS 5-27"
+  )) -> Rlamp_sens_total
+
+Rlamp_sens_total %>% 
+  group_by(sample) %>%
+  #filter(FAM > 0) %>%
+  mutate(CtPos = FAM > 0) %>%
+  filter(CtPos == TRUE) %>%
+  filter(time == min(time)) %>%
+  slice(1) %>% # takes the first occurrence if there is a tie
+  ungroup() -> Rlamp_sens_Ct
+
+ggplot(Rlamp_sens_Ct, aes(x=time, y=log(conc), color=tissue)) + 
+  geom_point() +
+  geom_line() 
+
+
+```
+
+do that for each gBlock with copy number
+```{r}
+gb_Btrt_Bgcor %>% 
+  group_by(sample) %>%
+  #filter(FAM > 0) %>%
+  mutate(CtPos = CorFl > AvgTh) %>%
+  filter(CtPos == TRUE) %>%
+  filter(time == min(time)) %>%
+  slice(1) %>% # takes the first occurrence if there is a tie
+  ungroup() -> gb_Btrt_1
+
+ggplot(gb_Btrt_1, aes(x=time, y=log(copies.ul), color=Sample.Name)) + 
+  geom_point(alpha = 4) 
+  #geom_line() 
+
+```
+
+```{r}
+gb_Plamp_Ct %>% 
+  group_by(sample) %>%
+  #filter(FAM > 0) %>%
+  mutate(CtPos = FAM > 0) %>%
+  filter(CtPos == TRUE) %>%
+  filter(time == min(time)) %>%
+  slice(1) %>% # takes the first occurrence if there is a tie
+  ungroup() -> gb_Plamp_1
+
+ggplot(gb_Plamp_1, aes(x=time, y=log(copies.ul), color=Sample.Name)) + 
+  geom_point(alpha = 4) 
+  #geom_line() 
+
+```
+
+```{r}
+gb_Rlamp_Ct %>% 
+  group_by(sample) %>%
+  #filter(FAM > 0) %>%
+  mutate(CtPos = FAM > 0) %>%
+  filter(CtPos == TRUE) %>%
+  filter(time == min(time)) %>%
+  slice(1) %>% # takes the first occurrence if there is a tie
+  ungroup() -> gb_Rlamp_1
+
+ggplot(gb_Rlamp_1, aes(x=time, y=log(copies.ul), color=Sample.Name)) + 
+  geom_point(alpha = 4) 
+  #geom_line() 
+```
+
+
+
+```{r average across the TR in the sensitivity trial after BG correction}
+Sp_test_BgCor %>%
+  select(Well, Cycle, sample, CorFl) -> Sp_test_tmp
+
+Sp_test_tmp %>%
+  group_by(Cycle, sample) %>% 
+  summarise(AvgCorFl = mean(CorFl, na.rm=TRUE), SdCorFl = sd(CorFl))-> Sp_test_tmp
+
+left_join(Sp_test_BgCor, Sp_test_tmp, by=c("sample","Cycle")) -> Sp_test_all
+```
+
+```{r}
+Plamp_BgCor %>%
+  select(Well, Cycle, sample, CorFl) -> Plamp_tmp
+
+Plamp_tmp %>%
+  group_by(Cycle, sample) %>% 
+  summarise(AvgCorFl = mean(CorFl, na.rm=TRUE), SdCorFl = sd(CorFl))-> Plamp_tmp
+
+left_join(Plamp_BgCor, Plamp_tmp, by=c("sample","Cycle")) -> Plamp_all
+
+```
+
+```{r}
+Rlamp_BgCor %>%
+  select(Well, Cycle, sample, CorFl) -> Rlamp_tmp
+
+Rlamp_tmp %>%
+  group_by(Cycle, sample) %>% 
+  summarise(AvgCorFl = mean(CorFl, na.rm=TRUE), SdCorFl = sd(CorFl))-> Rlamp_tmp
+
+left_join(Rlamp_BgCor, Rlamp_tmp, by=c("sample","Cycle")) -> Rlamp_all
+```
+
+```{r}
+Bt_BgCor %>%
+  select(Well, Cycle, sample, CorFl) -> Bt_tmp
+
+Bt_tmp %>%
+  group_by(Cycle, sample) %>% 
+  summarise(AvgCorFl = mean(CorFl, na.rm=TRUE), SdCorFl = sd(CorFl))-> Bt_tmp
+
+left_join(Bt_BgCor, Bt_tmp, by=c("sample","Cycle")) -> Bt_all
+
+```
+
+
+
+let's just plot one and see what it looks like
+```{r}
+ggplot(Sp_test_tmp, aes(x=Cycle, y=AvgCorFl, color=sample)) +
+  geom_point() 
+
+```
+
+```{r}
+Bt_tmp %>%
+  filter(str_detect(sample, "S.con-1")) -> Bt_tmp_1
+ggplot(Bt_tmp, aes(x=Cycle, y=AvgCorFl, color=sample)) +
+  geom_point() 
+```
+
+
+let's plot ones with the threshold 
+```{r}
+ggplot(Bt_BgCor, aes(x=time, y=CorFl, color=sample)) +
+  #geom_point(alpha = 1, size = 0.8) +
+  geom_smooth()+
+  geom_hline(yintercept = AvgTh, linetype = "dashed", color = "grey36", size = 1) +
+  annotate("text", x = 60, y=AvgTh, vjust = 1, label = "AvgTh", size = 2.5) +
+  geom_hline(yintercept = MaxTh, linetype = "dashed", color = "grey50", size = 1) +
+  annotate("text", x= 60 , y=MaxTh, vjust = -1, label = "MaxTh", size = 2.5) +
+  ylab("Background corrected Fluorescence (RFU)") +
+  xlab("Time (min)")
+
+ggsave(filename = "Bt_Bgcorrected_sensitivity_plot.png", device='png', dpi = 700, width = 16, height = 8)
+  #ggtitle("Rs sensitivity Background corrected with 10xSd of NTC-mean")
+```
+
+```{r}
+ggplot(Sp_test_BgCor, aes(x=time, y=CorFl, color=sample)) +
+  #geom_point(alpha = 1, size = 0.8) +
+  geom_smooth()+
+  geom_hline(yintercept = AvgTh, linetype = "dashed", color = "grey36", size = 1) +
+  annotate("text", x = 60, y=AvgTh, vjust = 1, label = "AvgTh", size = 2.5) +
+  geom_hline(yintercept = MaxTh, linetype = "dashed", color = "grey50", size = 1) +
+  annotate("text", x= 60 , y=MaxTh, vjust = -1, label = "MaxTh", size = 2.5) +
+  ylab("Background corrected Fluorescence (RFU)") +
+  xlab("Time (min)")
+
+ggsave(filename = "Plamp_Bgcorrected_sensitivity_plot.png", device='png', dpi = 700, width = 16, height = 8)
+  #ggtitle("Rs sensitivity Background corrected with 10xSd of NTC-mean")
+```
+
+logistic regression of probability of crossing the threshold(0) based on concentration
+```{r}
+#bull trout first
+
+Bt_lm <- glm(Detect ~ copies.ul, data = gb_Btrt_Ct, family = "binomial")
+summary(Bt_lm)
+```
+plotting the logisitic regression
+```{r}
+Bt_predict <- data.frame(copies.ul=seq(min(gb_Btrt_Ct$copies.ul), max(gb_Btrt_Ct$copies.ul), len=500))
+
+Bt_predict$detect <- predict(Bt_lm, Bt_predict, type="response")
+
+gb_Bt_logit <- merge(gb_Btrt_Ct, Bt_predict, by="copies.ul")
+
+ggplot(gb_Bt_logit, aes(x=copies.ul, y=detect)) + 
+  geom_point() +
+  geom_smooth(method = "glm", method.args = list(family="binomial"), se = FALSE)+
+  ylab("Probability of detection") +
+  xlab("Input concentration (copies/ul)")
+```
+
+```{r}
+Pl_lm <- glm(Detect ~ copies.ul, data = gb_Plamp_Ct, family = "binomial")
+summary(Pl_lm)
+```
+
+
+```{r}
+Pl_predict <- data.frame(copies.ul=seq(min(gb_Plamp_Ct$copies.ul), max(gb_Plamp_Ct$copies.ul), len=1000))
+
+Pl_predict$detect <- predict(Pl_lm, Pl_predict, type="response")
+
+gb_Pl_logit <- merge(gb_Plamp_Ct, Pl_predict, by="copies.ul")
+
+ggplot(gb_Pl_logit, aes(x=copies.ul, y=detect)) + 
+  geom_point() +
+  geom_smooth(method = "glm", method.args = list(family="binomial"), se = FALSE)+
+  ylab("Probability of detection") +
+  xlab("Input concentration (copies/ul)")
+```
+
+
