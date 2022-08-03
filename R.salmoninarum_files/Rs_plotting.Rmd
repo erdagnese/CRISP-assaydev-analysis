@@ -18,26 +18,27 @@ panel.background = element_blank(), axis.line = element_line(colour = "black")))
 library(RColorBrewer)
 library(jcolors)
 palette <- c('#e6194b', '#3cb44b', '#ffe119', '#4363d8', '#f58231', '#911eb4', '#46f0f0', '#f032e6', '#bcf60c', '#fabebe', '#008080', '#e6beff', '#9a6324', '#fffac8', '#800000', '#aaffc3', '#808000', '#ffd8b1', '#000075', '#808080', '#ffffff', '#000000')
+library(ggsci)
 ```
 
 ```{r data import}
 #Rs_sens <- read.csv(here("Rs_sensitivity_20220413.csv"))
 #Rs_spec <- read.csv(here("Rs_spec_20220413.csv"))
 #Rs_eDNA <- read.csv(here("Rs_eDNA_qPCR_20220414.csv"))
-Rs_sens1_amp <- read.csv(here("Rs_sens_1_amp_data.csv"))
-Rs_sens2_amp <- read.csv(here("Rs_sens_2_amp_data.csv"))
-Rs_spec_amp <- read.csv(here("Rs_spec_amp_data.csv"))
-Rs_eDNA1_amp <- read.csv(here("Rs_eDNA_1_amp_data.csv"))
-Rs_eDNA2_amp <- read.csv(here("Rs_eDNA_2_amp_data.csv"))
-Rs_sens1_map <- read.csv(here("Rs_sens_1_mapping.csv"))
-Rs_sens2_map <- read.csv(here("Rs_sens_2_mapping.csv"))
-Rs_spec_map <- read.csv(here("Rs_spec_mapping.csv"))
-Rs_eDNA1_map <- read.csv(here("Rs_eDNA_1_mapping.csv"))
-Rs_eDNA2_map <- read.csv(here("Rs_eDNA_2_mapping.csv"))
-Rs_eDNA_codes <- read.csv(here("Carson_hatchery_codes.csv"))
-Rs_qPCR_metadata <- read.csv(here("Rs_eDNA_carson_metadata.csv"))
-Rs_qPCR_results <- read.csv(here("Carson_qPCR_results.csv"))
-Rs_16_qPCR <- read.csv(here("qPCR_Rs16.csv"))
+Rs_sens1_amp <- read.csv(here("R.salmoninarum_files","Rs_sens_1_amp_data.csv"))
+Rs_sens2_amp <- read.csv(here("R.salmoninarum_files","Rs_sens_2_amp_data.csv"))
+Rs_spec_amp <- read.csv(here("R.salmoninarum_files","Rs_spec_amp_data.csv"))
+Rs_eDNA1_amp <- read.csv(here("R.salmoninarum_files","Rs_eDNA_1_amp_data.csv"))
+Rs_eDNA2_amp <- read.csv(here("R.salmoninarum_files","Rs_eDNA_2_amp_data.csv"))
+Rs_sens1_map <- read.csv(here("R.salmoninarum_files","Rs_sens_1_mapping.csv"))
+Rs_sens2_map <- read.csv(here("R.salmoninarum_files","Rs_sens_2_mapping.csv"))
+Rs_spec_map <- read.csv(here("R.salmoninarum_files","Rs_spec_mapping.csv"))
+Rs_eDNA1_map <- read.csv(here("R.salmoninarum_files","Rs_eDNA_1_mapping.csv"))
+Rs_eDNA2_map <- read.csv(here("R.salmoninarum_files","Rs_eDNA_2_mapping.csv"))
+Rs_eDNA_codes <- read.csv(here("R.salmoninarum_files","Carson_hatchery_codes.csv"))
+Rs_qPCR_metadata <- read.csv(here("R.salmoninarum_files","Rs_eDNA_carson_metadata.csv"))
+Rs_qPCR_results <- read.csv(here("R.salmoninarum_files","Carson_qPCR_results.csv"))
+Rs_16_qPCR <- read.csv(here("R.salmoninarum_files","qPCR_Rs16.csv"))
 
 ```
 
@@ -50,113 +51,6 @@ Rs_sens2_amp$time <- Rs_sens2_amp$Cycle / 2
 Rs_eDNA1_amp$time <- Rs_eDNA1_amp$Cycle / 2
 Rs_eDNA2_amp$time <- Rs_eDNA2_amp$Cycle / 2
 
-
-```
-
-
-```{r specificity plot}
-
-level_order <- c("1", "2","3","4","5","6","7","8","9","10","11","12","13","14","15","16","17","18","19","NTC")
-
-ggplot(Rs_spec, aes(x= factor(isolate, level = level_order), y = time, na.rm = TRUE)) + geom_boxplot() +
-  #geom_point() + 
-  scale_x_discrete(breaks=Rs_spec$isolate, labels=Rs_spec$name, name = "Isolate") +
-  theme(axis.text.x = element_text(angle = 60, hjust=1)) +
-  ylim(0,15)+
-  theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank())
-  
-
-
-```
-
-```{r sensitivity}
-ggplot(Rs_sens, aes(x= time, y = dilution, color = isolate, na.rm = TRUE))+
-  #geom_boxplot() +
-  geom_point() + 
-  geom_smooth(method = "lm", alpha = .15, aes(fill=isolate))+
-  guides(fill="none")+
-  ylim(0,-7)+
-  theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank()) +
-  labs(title = "Sensitivity of Rs assay", x="Time (min)", y="Dilution (10^X)")
-
-```
-
-```{r subset without the later cycles}
-
-Rs_sens %>% filter(time < 60) -> sens_subset
-
-ggplot(Rs_sens, aes(x= time, y = dilution, color = isolate, na.rm = TRUE))+
-  #geom_boxplot() +
-  geom_point() + 
-  geom_smooth(method = "lm", alpha = .15, aes(fill=isolate))+
-  guides(fill="none")+
-  ylim(0,-7)+
-  theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank()) +
-  labs(title = "Sensitivity of Rs assay", x="Time (min)", y="Dilution (10^X)")
-
-```
-
-```{r sensitivity by concentration}
-ggplot(sens_subset, aes(x= log(time), y = log(conc), color = isolate, na.rm = TRUE))+
-  #geom_boxplot() +
-  geom_point() + 
-  geom_smooth(method = "lm", alpha = .15, aes(fill=isolate))+
-  guides(fill="none")+
-  #ylim(0,1.3)+
-  theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank()) +
-  labs(title = "Sensitivity of Rs assay", x="Log of Time (min)", y="Log of Input DNA Concentration (ng/ul)")
-
-
-```
-
-```{r}
-Rs_sens %>% filter(time < 60) -> sens_subset
-
-ggplot(sens_subset, aes(x= log(time), y = log(conc), color = isolate, na.rm = TRUE))+
-  #geom_boxplot() +
-  geom_point() + 
-  geom_smooth(method = "lm", alpha = .15, aes(fill=isolate))+
-  guides(fill="none")+
-  #ylim(0,1.3)+
-  theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank()) +
-  labs(title = "Sensitivity of Rs assay", x="Time (min)", y="Log of Input DNA Concentration (ng/ul)")
-
-```
-
-```{r copy number by time}
-ggplot(Rs_sens, aes(x= time, y = log(copy), color = isolate, na.rm = TRUE))+
-  #geom_boxplot() +
-  geom_point() + 
-  geom_smooth(method = "lm", alpha = .15, aes(fill=isolate))+
-  guides(fill="none")+
-  #ylim(0,380000)+
-  theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank()) +
-  labs(title = "Sensitivity of Rs assay", x="Time (min)", y="Log transform of Copy number")
-```
-
-
-```{r eDNA compared to qPCR}
-ggplot(Rs_eDNA, aes(x= time, y = qPCR_Ct, na.rm = TRUE))+
-  #geom_boxplot() +
-  geom_point() + 
-  geom_smooth(method = "lm", alpha = .15)+
-  ylim(20,40)+
-  theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank())+
-  labs(title = "qPCR Ct value vs. CRISPR detection time: Carson hatchery eDNA samples", x="CRISPR assay detection time", y="qPCR Ct value")
-  
-
-```
-
-```{r}
-Rs_eDNA %>% filter(time < 80) -> eDNA_subset
-
-ggplot(eDNA_subset, aes(x= time, y = qPCR_Ct, na.rm = TRUE))+
-  #geom_boxplot() +
-  geom_point() + 
-  geom_smooth(method = "lm", alpha = .15)+
-  ylim(20,40)+
-  theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank())+
-  labs(title = "qPCR Ct value vs. CRISPR detection time: Carson hatchery eDNA samples", x="CRISPR assay detection time", y="qPCR Ct value")
 
 ```
 
@@ -194,6 +88,7 @@ Rs_spec_map %>%
 
 ```
 
+combining the map and the amp datat and formatting
 ```{r}
 inner_join(Rs_sens1_amp, Rs_sens1_map, by = "Well") -> Rs_sens1
 inner_join(Rs_sens2_amp, Rs_sens2_map, by = "Well") -> Rs_sens2
@@ -221,7 +116,6 @@ ggplot(Rs_sens2, aes(x=Cycle, y=FAM, color = sample)) + geom_point()
 
 ```
 
-THIS IS OLD _ DO NOT USE
 
 calculating background from NTCs
 ```{r pull out NTC values to calc background}
@@ -282,18 +176,6 @@ Rs_spec_total %>%
   mutate(CycleTh = ((10*BG_sd) + BG_mean)) %>%
   mutate(CorCt = case_when(CorFl > CycleTh ~ "Y", 
          CorFl <= CycleTh ~ "N")) -> Rs_spec_BgCor
-
-Rs_spec_total %>% 
-  mutate(CorFl = FAM - BG_cor) %>%
-  mutate(CycleTh = 20*BG_sd) %>%
-  mutate(CorCt = case_when(CorFl > CycleTh ~ "Y", 
-         CorFl <= CycleTh ~ "N")) -> Rs_spec_BgCor20
-
-Rs_spec_total %>% 
-  mutate(CorFl = FAM - BG_cor) %>%
-  mutate(CycleTh = 50*BG_sd) %>%
-  mutate(CorCt = case_when(CorFl > CycleTh ~ "Y", 
-         CorFl <= CycleTh ~ "N")) -> Rs_spec_BgCor50
 
 Rs_eDNA1_total %>% 
   mutate(CorFl = FAM - BG_cor) %>%
@@ -442,14 +324,19 @@ Rs_spec_FAMcs %>%
 ```
 Alternate spec plot with just 0 as a threshold
 ```{r}
+Rs_spec %>%
+arrange(Species) %>%
+  mutate(Species = factor(Species, levels=c("R.salmoninarum", "A.globiformis", "A.salmonicida", "C.malta", "F.johnsinae", "F.psychrophilum", "K.varians", "L.aquatica", "M.luteus", "V.ordalii", "Y.ruckeri", "NTC"))) -> Rs_spec
+
 ggplot(Rs_spec, aes(x=time, y=FAM, color=Species)) + 
-  geom_point() +
-  #geom_smooth() +
+  geom_point(size=1) +
+  #geom_smooth(aes(color=Species)) +
   geom_hline(yintercept = 0, linetype = "dashed", color = "grey36", size = 1) +
   annotate("text", x = 110, y=0, vjust = 1, label = "Threshold", size = 2.5) +
   ylab("Fluorescence (FAM)") +
-  xlab("Time (min)") #+
-  #scale_color_jcolors("pal8")
+  xlab("Time (min)") +
+  scale_color_d3("category20") #+
+  #scale_fill_igv()
 ```
 
 
@@ -480,7 +367,7 @@ Rs_sens1_FAMcs %>%
                             FAMfinal <= 0 ~ "No"))-> Rs_sens1_detections
 
 ggplot(Rs_sens1_FAMcs, aes(x=time, y=FAMcs, color=sample)) + geom_point() +
-  ylab(expression("Cumulative Sum of change of Fluorescence"~(Delta *"RFU"))) +
+  ylab(expression("Cumulative Sum of change of Fluorescence"~(Delta *"FAM"))) +
   xlab("Time (min)")
   
 ```
@@ -499,7 +386,7 @@ Rs_sens2_FAMcs %>%
                             FAMfinal <= 0 ~ "No"))-> Rs_sens2_detections
 
 ggplot(Rs_sens2_FAMcs, aes(x=time, y=FAMcs, color=sample)) + geom_point() +
-  ylab(expression("Cumulative Sum of change of Fluorescence"~(Delta *"RFU"))) +
+  ylab(expression("Cumulative Sum of change of Fluorescence"~(Delta *"FAM"))) +
   xlab("Time (min)")
 ```
 
@@ -694,20 +581,26 @@ Rs_16_compare %>%
   filter(CtPos == TRUE) %>%
   filter(time == min(time)) %>%
   slice(1) %>% # takes the first occurrence if there is a tie
-  ungroup() %>%
-  summarise() = -> Rs_16_compare_Ct
+  ungroup() -> Rs_16_compare_Ct
 
-ggplot(Rs_16_compare_Ct, aes(x=time, y=log(Quantity), color=as.factor(conc))) +
+Rs_16_compare_Ct %>%
+  group_by(DilutionFac) %>%
+  summarise(mean = mean(time), sd = sd(time)) %>%
+  ungroup() %>%
+  mutate_at(vars("sd"), ~replace_na(.,0))-> Rs_16_compare_Ct2
+
+left_join(Rs_16_compare_Ct, Rs_16_compare_Ct2, by = "DilutionFac") -> Rs_16_compare_df
+
+ggplot(Rs_16_compare_df, aes(x=mean, y=log(Quantity), color=as.factor(conc))) +
   geom_point() +
-  geom_errorbar(aes(xmin=time-se, ))
+  geom_errorbar(aes(xmin= mean - sd, xmax= mean + sd, width=.2)) +
   #geom_count() +
   scale_size_area(max_size = 8) +
   xlab("Time (minutes)") +
   ylab("log10(copy number (copies/ul))") +
   labs(color="Concentraion (ng/ul)")
 
-ggsave(filename = "qPCR-CRISPR-isolate-copy-time.tiff", dpi = 700, width = 18,
-       height = 12, units = "cm")
+ggsave(filename = "qPCR-CRISPR-isolate-copy-time.png", device = 'png',dpi = 700, width = 6, height = 4)
 ```
 
 
@@ -899,16 +792,18 @@ Rs_eDNA_neg_disagree %>%
 
 combine the detections and export to make a table with metadata
 ```{r}
-ggplot(Rs_eDNA_both_Ct, aes(x=time, y=log(Quantity), color=location)) +
+ggplot(Rs_eDNA_both_Ct, aes(x=time, y=log(Quantity))) +
   geom_point(size = 2.5) +
+  geom_hline(yintercept = log(10), linetype = "dashed", color = "grey36", size = 1) +
+  annotate("text", x = 110, y=log(10), vjust = 1, label = "LOD", size = 3.5) +
   #geom_count() +
   #scale_size_area(max_size = 3) +
   xlab("Time (minutes) to detect via CRISPR") +
-  ylab("log10(copy number via qPCR)") +
-  labs(color="Location of sample taken")
+  ylab("log10(copy number via qPCR)") 
+  #labs(color="Location of sample taken")
 
-ggsave(filename = "Rs-eDNA-qPCR-Cas-compare.tiff", dpi = 700, width = 18,
-       height = 12, units = "cm")
+ggsave(filename = "Rs-eDNA-qPCR-Cas-compare.png", device='png', dpi = 700, width = 6,
+       height = 4)
 
 ```
 
