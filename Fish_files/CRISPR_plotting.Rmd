@@ -64,7 +64,7 @@ gb_redo_amp$time <- gb_redo_amp$Cycle / 2
 format mapping file
 ```{r setting up the mapping and amp data into one df}
 Sp_test_map %>% mutate(sample = paste(Sample.Name, Target.Name)) %>%
-  subset(select= -c(Sample.Name,Target.Name)) %>% 
+  #subset(select= -c(Sample.Name,Target.Name)) %>% 
   subset( sample != " ") -> Sp_test_map
 
 Pl_spec_map %>% mutate(sample = Sample.Name)  %>%
@@ -79,7 +79,7 @@ Rl_sens_map %>% mutate(sample = paste(Sample.Name, Target.Name)) %>%
 
 B_test_map %>% 
   mutate(sample = paste(Sample.Name, Target.Name)) %>%
-  subset(select= -c(Sample.Name,Target.Name)) %>% 
+  #subset(select= -c(Sample.Name,Target.Name)) %>% 
   subset( sample != " ") -> B_test_map
 
 Bt_spec_map %>% mutate(sample = Sample.Name)  %>%
@@ -442,22 +442,18 @@ Bt_test_Ct %>%
           str_detect(sample, "1:1") ~ 1,
           str_detect(sample, "NTC") ~ 0)) -> Bt_test_Ct
 
-Bt_test_Ct %>%
-  mutate(conc = case_when(
-          str_detect(sample, "1:1000000") ~ 0.000001,
-          str_detect(sample, "1:100000") ~ 0.00001,
-          str_detect(sample, "1:10000") ~ 0.0001,
-          str_detect(sample, "1:500000") ~ 0.00005,
-          str_detect(sample, "1:50000") ~ 0.0005,
-          str_detect(sample, "1:1000") ~ 0.001,
-          str_detect(sample, "1:5000") ~ 0.005,
-          str_detect(sample, "1:100") ~ 0.01,
-          str_detect(sample, "1:10") ~ 0.1,
-          str_detect(sample, "1:1") ~ 1,
-          str_detect(sample, "NTC") ~ 0)) -> Bt_test_Ct
 
 
 Bt_test_Ct$DilutionFac <- as.factor(Bt_test_Ct$Dilution)
+
+Bt_test_Ct %>%
+  group_by(Well,sample) %>%
+  #filter(FAM > 0) %>%
+  mutate(CtPos = FAM > 0) %>%
+  filter(CtPos == TRUE) %>%
+  filter(time == min(time)) %>%
+  slice(1) %>% # takes the first occurrence if there is a tie
+  ungroup() -> Bt_test_Ct_pos
 
 ggplot(Bt_test_Ct, aes(x=time, y=FAM, color= DilutionFac)) +
   geom_smooth()+
@@ -466,6 +462,8 @@ ggplot(Bt_test_Ct, aes(x=time, y=FAM, color= DilutionFac)) +
   ylab("Flourescence Intensity") +
   xlab("Time (min)") +
   ggtitle("Bull trout tissue sensitivity test")
+
+
 ```
 
 Pacific lamprey sensitivity plot
@@ -485,6 +483,15 @@ Sp_test_Ct%>%
           str_detect(sample, "NTC") ~ 0)) -> Sp_test_Ct
 
 Sp_test_Ct$DilutionFac <- as.factor(Sp_test_Ct$Dilution)
+
+Sp_test_Ct %>%
+  group_by(Well,sample) %>%
+  #filter(FAM > 0) %>%
+  mutate(CtPos = FAM > 0) %>%
+  filter(CtPos == TRUE) %>%
+  filter(time == min(time)) %>%
+  slice(1) %>% # takes the first occurrence if there is a tie
+  ungroup() -> Sp_test_Ct_pos
 
 ggplot(Sp_test_Ct, aes(x=time, y=FAM, color=DilutionFac)) +
   geom_smooth()+
@@ -513,6 +520,15 @@ Rl_sens_Ct%>%
 
 Rl_sens_Ct$DilutionFac <- as.factor(Rl_sens_Ct$Dilution)
 
+Rl_sens_Ct %>%
+  group_by(Well,sample) %>%
+  #filter(FAM > 0) %>%
+  mutate(CtPos = FAM > 0) %>%
+  filter(CtPos == TRUE) %>%
+  filter(time == min(time)) %>%
+  slice(1) %>% # takes the first occurrence if there is a tie
+  ungroup() -> Rl_sens_Ct_pos
+
 
 ggplot(Rl_sens_Ct, aes(x=time, y=FAM, color=DilutionFac)) +
   geom_smooth()+
@@ -522,6 +538,46 @@ ggplot(Rl_sens_Ct, aes(x=time, y=FAM, color=DilutionFac)) +
   xlab("Time (min)") 
 
 ```
+
+plot with all three facetted
+```{r}
+Bt_test_Ct %>%
+  select(sample, Cycle, FAM, time, Target.Name, conc, Detect, Dilution, DilutionFac) %>%
+  mutate(Target.Name = case_when(str_detect(sample, "NTC")~ "S.con",
+                                 TRUE ~as.character(as.character(Target.Name))))-> Bt_sens_1
+
+Sp_test_Ct %>%
+   select(sample, Cycle, FAM, time, Target.Name, conc, Detect, Dilution, DilutionFac) %>%
+  mutate(Target.Name = case_when(str_detect(sample, "NTC")~ "E.tri",
+                                 TRUE ~as.character(as.character(Target.Name))))-> Pl_sens_1
+
+Rl_sens_Ct %>%
+   select(sample, Cycle, FAM, time, Target.Name, conc, Detect, Dilution, DilutionFac) %>%
+  mutate(Target.Name = case_when(str_detect(sample, "NTC")~ "L.ayr",
+                                 TRUE ~as.character(as.character(Target.Name))))-> Rl_sens_1
+
+rbind(Bt_sens_1,Pl_sens_1,Rl_sens_1) -> All_sens
+
+All_sens %>%
+  mutate(Assay = case_when(
+    str_detect(Target.Name, "S.con") ~ "Bull Trout",
+    str_detect(Target.Name, "E.tri") ~ "Pacific Lamprey",
+    str_detect(Target.Name, "L.ayr") ~ "Lampetra spp.")) -> All_sens
+
+All_sens$Assay <- factor(All_sens$Assay, levels=c("Bull Trout", "Pacific Lamprey", "Lampetra spp."))
+
+ggplot(All_sens, aes(x=time, y=FAM, color=DilutionFac)) +
+  geom_smooth()+
+  geom_hline(yintercept = thresh, linetype = "dashed", color = "grey36", size = 1) +
+  annotate("text", x = 60, y= thresh, vjust = 1, label = "Threshold", size = 2.5) +
+  ylab("Flourescence Intensity") +
+  xlab("Time (min)") +
+  facet_grid(Assay ~., scales = "free")
+
+ggsave(filename = "Sensitivity_all_assays.png", device = 'png', dpi = 700, width = 6, height = 8)
+
+```
+
 
 Gblock sensitivity plots
 ```{r}
