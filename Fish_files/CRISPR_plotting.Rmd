@@ -68,10 +68,12 @@ Sp_test_map %>% mutate(sample = paste(Sample.Name, Target.Name)) %>%
   subset( sample != " ") -> Sp_test_map
 
 Pl_spec_map %>% mutate(sample = Sample.Name)  %>%
-  subset(select= -c(Sample.Name))-> Pl_spec_map
+  subset(select= -c(Sample.Name)) %>%
+  mutate(Assay = "Pacific Lamprey")-> Pl_spec_map
 
 Rl_spec_map %>% mutate(sample = Sample.Name)  %>%
-  subset(select= -c(Sample.Name))-> Rl_spec_map
+  subset(select= -c(Sample.Name)) %>%
+  mutate(Assay = "Lampetra spp.") -> Rl_spec_map
 
 Rl_sens_map %>% mutate(sample = paste(Sample.Name, Target.Name)) %>%
   #subset(select= -c(Sample.Name,Target.Name)) %>% 
@@ -83,7 +85,8 @@ B_test_map %>%
   subset( sample != " ") -> B_test_map
 
 Bt_spec_map %>% mutate(sample = Sample.Name)  %>%
-  subset(select= -c(Sample.Name))-> Bt_spec_map
+  subset(select= -c(Sample.Name)) %>%
+  mutate(Assay = "Bull Trout")-> Bt_spec_map
 
 gb_map %>%
   mutate(sample = paste(Sample.Name, Target.Name)) %>%
@@ -361,6 +364,26 @@ ggplot(Rl_spec_known, aes(x=time, y=FAM, color = species)) +
   annotate("text", x = 60, y= thresh, vjust = 1, label = "Threshold", size = 2.5) +
   ylab("Flourescence Intensity") +
   xlab("Time (min)")
+
+```
+
+Combine them all to make a figure for facets
+```{r}
+rbind(Bt_spec_all, Pl_spec_known, Rl_spec_known) -> All_spec
+
+All_spec$Assay <- factor(All_spec$Assay, levels=c("BullTrout", "PacificLamprey", "Lampetraspp."))
+
+
+ggplot(All_spec, aes(x=time, y=FAM, color = species)) +
+  geom_point(size =0.9)+
+  geom_hline(yintercept = thresh, linetype = "dashed", color = "grey36", size = 1) +
+  annotate("text", x = 60, y= thresh, vjust = 1, label = "Threshold", size = 2.5) +
+  ylab("Flourescence Intensity") +
+  xlab("Time (min)") +
+  facet_grid(Assay ~., scales = "free")
+
+ggsave(filename = "Specificity_all_assays.png", device = 'png', dpi = 700, width = 6, height = 8)
+
 
 ```
 
@@ -657,16 +680,27 @@ ggplot(Rlamp_sens_Ct, aes(x=time, y=log(conc), color=tissue)) +
 
 ```
 
+
+
+
 do that for each gBlock with copy number
 ```{r}
 gb_Btrt_Bgcor %>% 
-  group_by(sample) %>%
+  group_by(Well) %>%
   #filter(FAM > 0) %>%
   mutate(CtPos = CorFl > AvgTh) %>%
   filter(CtPos == TRUE) %>%
   filter(time == min(time)) %>%
   slice(1) %>% # takes the first occurrence if there is a tie
   ungroup() -> gb_Btrt_1
+
+gb_Btrt_1 %>%
+  group_by(Sample.Name) %>%
+  summarise(mean = mean(time), sd = sd(time)) %>%
+  ungroup() %>%
+  mutate_at(vars("sd"), ~replace_na(.,0)) -> gb_Btrt_avg
+
+left_join(gb_Btrt_1, gb_Btrt_avg, by = "Sample.Name") -> gb_Btrt_1
 
 ggplot(gb_Btrt_1, aes(x=time, y=log(copies.ul), color=Sample.Name)) + 
   geom_point(alpha = 4) 
@@ -676,13 +710,21 @@ ggplot(gb_Btrt_1, aes(x=time, y=log(copies.ul), color=Sample.Name)) +
 
 ```{r}
 gb_Plamp_Ct %>% 
-  group_by(sample) %>%
+  group_by(Well) %>%
   #filter(FAM > 0) %>%
   mutate(CtPos = FAM > 0) %>%
   filter(CtPos == TRUE) %>%
   filter(time == min(time)) %>%
   slice(1) %>% # takes the first occurrence if there is a tie
   ungroup() -> gb_Plamp_1
+
+gb_Plamp_1 %>%
+  group_by(Sample.Name) %>%
+  summarise(mean = mean(time), sd = sd(time)) %>%
+  ungroup() %>%
+  mutate_at(vars("sd"), ~replace_na(.,0)) -> gb_Plamp_avg
+
+left_join(gb_Plamp_1, gb_Plamp_avg, by = "Sample.Name") -> gb_Plamp_1
 
 ggplot(gb_Plamp_1, aes(x=time, y=log(copies.ul), color=Sample.Name)) + 
   geom_point(alpha = 4) 
@@ -692,7 +734,7 @@ ggplot(gb_Plamp_1, aes(x=time, y=log(copies.ul), color=Sample.Name)) +
 
 ```{r}
 gb_Rlamp_Ct %>% 
-  group_by(sample) %>%
+  group_by(Well) %>%
   #filter(FAM > 0) %>%
   mutate(CtPos = FAM > 0) %>%
   filter(CtPos == TRUE) %>%
@@ -700,9 +742,45 @@ gb_Rlamp_Ct %>%
   slice(1) %>% # takes the first occurrence if there is a tie
   ungroup() -> gb_Rlamp_1
 
+gb_Rlamp_1 %>%
+  group_by(Sample.Name) %>%
+  summarise(mean = mean(time), sd = sd(time)) %>%
+  ungroup() %>%
+  mutate_at(vars("sd"), ~replace_na(.,0)) -> gb_Rlamp_avg
+
+left_join(gb_Rlamp_1, gb_Rlamp_avg, by = "Sample.Name") -> gb_Rlamp_1
+
 ggplot(gb_Rlamp_1, aes(x=time, y=log(copies.ul), color=Sample.Name)) + 
   geom_point(alpha = 4) 
   #geom_line() 
+```
+
+make a plot with all three facetted 
+```{r}
+gb_Btrt_1 %>%
+  select(time, copies.ul, sample, Sample.Name, Target.Name, mean, sd) %>%
+  mutate(Assay = "Bull Trout") -> gb_Btrt_2
+
+gb_Plamp_1 %>%
+  select(time, copies.ul, sample, Sample.Name, Target.Name, mean, sd) %>%
+  mutate(Assay = "Pacific Lamprey") -> gb_Plamp_2
+
+gb_Rlamp_1 %>%
+  select(time, copies.ul, sample, Sample.Name, Target.Name, mean, sd) %>%
+  mutate(Assay = "Lampetra spp.") -> gb_Rlamp_2
+
+rbind(gb_Btrt_2, gb_Plamp_2, gb_Rlamp_2) -> gb_pos_all
+
+ggplot(gb_pos_all, aes(x=mean, y=log(copies.ul), color=Sample.Name)) + 
+  geom_point(alpha = 4) +
+  geom_errorbar(aes(xmin= mean - sd, xmax= mean + sd, width=.2)) +
+  xlab("Time (minutes)") +
+  ylab("log10(copy number (copies/ul))") +
+  labs(color="Standard dilutions") +
+  facet_wrap(~ Assay, ncol=2)
+
+ggsave(filename = "gblock_sens_all.png", device = 'png', dpi = 700, width = 6, 
+       height = 4)
 ```
 
 

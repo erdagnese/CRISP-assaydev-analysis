@@ -93,7 +93,8 @@ combining the map and the amp datat and formatting
 inner_join(Rs_sens1_amp, Rs_sens1_map, by = "Well") -> Rs_sens1
 inner_join(Rs_sens2_amp, Rs_sens2_map, by = "Well") -> Rs_sens2
 inner_join(Rs_spec_amp, Rs_spec_map, by = "Well") -> Rs_spec
-
+inner_join(Rs_eDNA1_amp, Rs_eDNA1_map, by = "Well") -> Rs_eDNA1
+inner_join(Rs_eDNA2_amp, Rs_eDNA2_map, by = "Well") -> Rs_eDNA2
 
 Rs_sens1 %>% mutate(across(where(is.character), str_remove_all, pattern = fixed(" "))) -> Rs_sens1
 Rs_sens2 %>% mutate(across(where(is.character), str_remove_all, pattern = fixed(" "))) -> Rs_sens2
@@ -486,12 +487,13 @@ Rs_sens_all_cult %>%
 rbind(Rs_sens_cult_only, Rs_sens_cult_NTC) -> Rs_sens_cult_fig
 
 ggplot(Rs_sens_cult_fig, aes(x=time, y=FAM, color=DilutionFac)) +
-  facet_grid(isolate ~ .) +
+  facet_grid(isolate ~ ., scales = "free") +
   geom_smooth(aes(fill=DilutionFac)) +
   geom_hline(yintercept = 0, linetype = "dashed", color = "grey36", size = 1) +
   annotate("text", x = 110, y=0, vjust = 1, label = "Threshold", size = 2.5) +
   #geom_hline(yintercept = MaxTh, linetype = "dashed", color = "grey50", size = 1) +
   #annotate("text", x=110 , y=MaxTh, vjust = -1, label = "MaxTh", size = 2.5) +
+  xlim(0,90) +
   ylab("Fluorescence (FAM)") +
   xlab("Time (min)")+
   labs(color="Dilution") +
@@ -521,13 +523,13 @@ ggplot(Rs_sens_cult_pos,
   geom_point(size=2.5) +
   scale_shape_manual(values = c(22,21,24,23)) +
   #geom_line(aes(linetype=isolate))+
-  xlab("log10(Time (min))") +
+  xlab("Time (min)") +
   ylab("log10(DNA concentration (ng/ul))") +
   labs(color = "Dilution factor") +
   labs(shape = "Isolate") +
   xlim(0,70) +
-  geom_vline(xintercept = 20, linetype = "dashed", color = "grey36", size = 1)+
-  annotate("text", x = 25 , y=0, vjust = 1, label = "Time cut-off", size = 2.5) +
+  geom_vline(xintercept = 25, linetype = "dashed", color = "grey36", size = 1)+
+  annotate("text", x = 35 , y=0, vjust = 1, label = "Proposed time cut-off", size = 2.5) +
   scale_fill_discrete(guide = 'none')
   
 ggsave(filename = "Rs_sens_culture_positives_time.png", device = 'png',dpi = 700, width = 7, height = 5)
@@ -587,7 +589,7 @@ Rs_16_compare_Ct %>%
   group_by(DilutionFac) %>%
   summarise(mean = mean(time), sd = sd(time)) %>%
   ungroup() %>%
-  mutate_at(vars("sd"), ~replace_na(.,0))-> Rs_16_compare_Ct2
+  mutate_at(vars("sd"), ~replace_na(.,0)) -> Rs_16_compare_Ct2
 
 left_join(Rs_16_compare_Ct, Rs_16_compare_Ct2, by = "DilutionFac") -> Rs_16_compare_df
 
@@ -603,12 +605,48 @@ ggplot(Rs_16_compare_df, aes(x=mean, y=log(Quantity), color=as.factor(conc))) +
 ggsave(filename = "qPCR-CRISPR-isolate-copy-time.png", device = 'png',dpi = 700, width = 6, height = 4)
 ```
 
+Alternate plot without concentration
+```{r}
+ggplot(Rs_16_compare_df, aes(x=mean, y=log(Quantity))) +
+  geom_point(size=2) +
+  geom_errorbar(aes(xmin= mean - sd, xmax= mean + sd, width=.2)) +
+  #geom_count() +
+  scale_size_area(max_size = 8) +
+  xlab("Time (minutes)") +
+  ylab("log10(copy number (copies/ul))") 
+
+ggsave(filename = "Rs-16_copiespertime_BW.png", device = 'png', dpi = 700, width = 4, height = 3)
+
+```
+
+test whether time to detection is related to concentration
+```{r}
+Rs_16_compare %>%
+  group_by(Well) %>%
+  #filter(FAM > 0) %>%
+  mutate(CtPos = FAM > 0) %>%
+  filter(CtPos == TRUE) -> Rs_16_comp_pos
+
+anti_join(Rs_16_compare, Rs_16_comp_pos) -> Rs_16_comp_neg
+
+Rs_16_comp_neg %>%
+  filter(time == 120) -> Rs_16_comp_neg1
+
+Rs_16_comp_neg %>%
+  group_by(DilutionFac) %>%
+  summarise(mean = mean(time), sd = sd(time)) %>%
+  ungroup() %>%
+  mutate_at(vars("sd"), ~replace_na(.,0)) -> Rs_16_compare_neg2
+
+left_join(Rs_16_comp_neg, Rs_16_compare_neg2, by = "DilutionFac") -> Rs_16_comp_neg_all
+
+rbind(Rs_16_compare_df, Rs_16_comp_neg_all) -> Rs_16_comp_all
+  
+```
 
 
 let's pull out the ones that cross the threshold to check that they agree with the change in Y detections
 ```{r}
-
-
 Rs_sens_BgCor %>%
   #filter(CorCt == "Y") %>%
   mutate(isolate = case_when(
@@ -643,6 +681,56 @@ ggplot(Rs_sens_Ct_cult, aes(x=time, y=log(conc), color=isolate)) +
   geom_line() 
 
 ```
+
+logistic regression of probability of crossing the threshold(0) based on concentration
+```{r}
+Rs_16_compare %>%
+  mutate(Detect = case_when(FAM > 0 ~ 1, 
+         FAM <= 0 ~ 0)) -> Rs_16_comp_det
+
+Rs_lm <- glm(Detect ~ Quantity, data = Rs_16_comp_det, family = "binomial")
+summary(Rs_lm)
+
+Rs_lm_time <- glm(Detect ~ time, data = Rs_16_comp_det, family = "binomial")
+summary(Rs_lm_time)
+```
+
+plotting the logisitic regression
+```{r}
+Rs_predict <- data.frame(Quantity=seq(min(Rs_16_comp_det$Quantity), max(Rs_16_comp_det$Quantity), len=500))
+
+Rs_predict$detect <- predict(Rs_lm, Rs_predict, type="response")
+
+Rs_logit <- merge(Rs_16_comp_det, Rs_predict, by="Quantity")
+
+ggplot(Rs_logit, aes(x=Quantity, y=detect)) + 
+  geom_point() +
+  geom_smooth(method = "glm", 
+              method.args = list(family="binomial"), se = FALSE) +
+  ylab("Probability of detection") +
+  xlab("Input concentration (copies/ul)")
+
+ggsave(filename = "Prob_detection_Rs_16.png", device = 'png', dpi = 700, width = 4, height = 3)
+```
+
+
+```{r}
+Rs_predict_time <- data.frame(time=seq(min(Rs_16_comp_det$time), max(Rs_16_comp_det$time), len=500))
+
+Rs_predict_time$detect <- predict(Rs_lm_time, Rs_predict_time, type="response")
+
+Rs_logit_time <- merge(Rs_16_comp_det, Rs_predict_time, by="time")
+
+ggplot(Rs_logit_time, aes(x=time, y=detect)) + 
+  geom_point() +
+  geom_smooth(method = "glm", 
+              method.args = list(family="binomial"), se = FALSE) +
+  ylab("Probability of detection") +
+  xlab("Time to detection (min)")
+
+ggsave(filename = "Prob_detection_Rs_16_time.png", device = 'png', dpi = 700, width = 4, height = 3)
+```
+
 
 now do the same for eDNA
 ```{r}
