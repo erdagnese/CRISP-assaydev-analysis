@@ -1,4 +1,4 @@
-# CRISP-assaydev-analysis
+# CRISPR-assaydev-analysis
 
 This repository houses the scripts and datafiles for two different projects, one for the development of an assay for Renibacterium salmoninarum from sequence fragment alignments using PrimedRPA (Higgins et al 2018 https://github.com/MatthewHiggins2017/bioconda-PrimedRPA). 
 Then another file directory for the development and analysis of RPA-CRISPR(Cas12a) assays modified from previoulsy developed and validated qPCR assays for three freshwater fish species: Bull trout, Pacific Lamprey and Lampetra spp (River Lamprey species).
