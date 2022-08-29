@@ -572,7 +572,7 @@ Rs_logit <- merge(Rs_16_comp_det, Rs_predict, by="Quantity")
 ggplot(Rs_logit, aes(x=Quantity, y=detect)) + 
   geom_point() +
   geom_smooth(method = "glm", 
-              method.args = list(family="binomial"), se = FALSE) +
+              method.args = list(family="binomial"), se = FALSE, color = "black") +
   ylab("Probability of detection") +
   xlab("Input concentration (copies/ul)")
 
