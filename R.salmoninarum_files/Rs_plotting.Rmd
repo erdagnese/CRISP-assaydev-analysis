@@ -22,6 +22,9 @@ library(ggsci)
 ```
 
 ```{r data import}
+#Rs_sens <- read.csv(here("Rs_sensitivity_20220413.csv"))
+#Rs_spec <- read.csv(here("Rs_spec_20220413.csv"))
+#Rs_eDNA <- read.csv(here("Rs_eDNA_qPCR_20220414.csv"))
 Rs_sens1_amp <- read.csv(here("R.salmoninarum_files","Rs_sens_1_amp_data.csv"))
 Rs_sens2_amp <- read.csv(here("R.salmoninarum_files","Rs_sens_2_amp_data.csv"))
 Rs_spec_amp <- read.csv(here("R.salmoninarum_files","Rs_spec_amp_data.csv"))
@@ -85,13 +88,14 @@ Rs_spec_map %>%
 
 ```
 
-combining the map and the amp datat and formatting
-```{r merging data for each run}
+combining the map and the amp data and formatting
+```{r}
 inner_join(Rs_sens1_amp, Rs_sens1_map, by = "Well") -> Rs_sens1
 inner_join(Rs_sens2_amp, Rs_sens2_map, by = "Well") -> Rs_sens2
 inner_join(Rs_spec_amp, Rs_spec_map, by = "Well") -> Rs_spec
 inner_join(Rs_eDNA1_amp, Rs_eDNA1_map, by = "Well") -> Rs_eDNA1
 inner_join(Rs_eDNA2_amp, Rs_eDNA2_map, by = "Well") -> Rs_eDNA2
+
 
 Rs_sens1 %>% mutate(across(where(is.character), str_remove_all, pattern = fixed(" "))) -> Rs_sens1
 Rs_sens2 %>% mutate(across(where(is.character), str_remove_all, pattern = fixed(" "))) -> Rs_sens2
@@ -102,123 +106,22 @@ Rs_sens1 %>%
 
 ```
 
-```{r vis of specificity}
+```{r}
 ggplot(Rs_spec, aes(x=Cycle, y=FAM, color = sample)) + geom_point()
 ```
-```{r visualisation of sensitivity 1}
+```{r}
 ggplot(Rs_sens1, aes(x=Cycle, y=FAM, color = sample)) + geom_point()
 
 ```
-```{r vis for sensitivity 2 run}
+```{r}
 ggplot(Rs_sens2, aes(x=Cycle, y=FAM, color = sample)) + geom_point()
 
 ```
-In case there are positive NTC values, it is a good idea to calculate these, but is not necessary for the analysis if all NTCs remain negative.
-
-calculating background from NTCs
-```{r pull out NTC values to calc background}
-#take average of NTC
-Rs_sens1 %>% filter(sample == "NTC") -> Rs_sens1_NTC
-Rs_sens2 %>% filter(sample == "NTC") -> Rs_sens2_NTC
-Rs_spec %>% filter(sample == "NTC") -> Rs_spec_NTC
-Rs_eDNA1 %>% filter(sample == "NTC") -> Rs_eDNA1_NTC
-Rs_eDNA2 %>% filter(sample == "NTC") -> Rs_eDNA2_NTC
-```
-
-```{r using the function to calc background for correction}
-#made this a function 'background_fl' but requires a NTC subset
-source(here("background_fl.R"))
-
-Rs_sens1_NTC_bg <- background_fl(Rs_sens1_NTC)
-Rs_sens2_NTC_bg <- background_fl(Rs_sens2_NTC)
-Rs_spec_NTC_bg <- background_fl(Rs_spec_NTC)
-Rs_eDNA1_NTC_bg <- background_fl(Rs_eDNA1_NTC)
-Rs_eDNA2_NTC_bg <- background_fl(Rs_eDNA2_NTC)
-
-
-#join the mean values with the cycle numbers in the main data
-left_join(Rs_sens1, Rs_sens1_NTC_bg, by = "Cycle") -> Rs_sens1_total
-left_join(Rs_sens2, Rs_sens2_NTC_bg, by = "Cycle") -> Rs_sens2_total
-left_join(Rs_spec, Rs_spec_NTC_bg, by = "Cycle") -> Rs_spec_total
-left_join(Rs_eDNA1, Rs_eDNA1_NTC_bg, by = "Cycle") -> Rs_eDNA1_total
-left_join(Rs_eDNA2, Rs_eDNA2_NTC_bg, by = "Cycle") -> Rs_eDNA2_total
-
-
-```
-
-```{r calculate the corrected Rn from the background and Ct set at 100*BGsd}
-Rs_sens1_total %>% 
-  mutate(CorFl = FAM - BG_cor) %>%
-  mutate(CycleTh = ((10*BG_sd) + BG_mean)) %>%
-  mutate(CorCt = case_when(CorFl > CycleTh ~ "Y", 
-         CorFl <= CycleTh ~ "N")) -> Rs_sens1_BgCor
-
-Rs_sens2_total %>% 
-  mutate(CorFl = FAM - BG_cor) %>%
-  mutate(CycleTh = ((10*BG_sd) + BG_mean)) %>%
-  mutate(CorCt = case_when(CorFl > CycleTh ~ "Y", 
-         CorFl <= CycleTh ~ "N")) -> Rs_sens2_BgCor
-
-Rs_spec_total %>% 
-  mutate(CorFl = FAM - BG_cor) %>%
-  mutate(CycleTh = ((10*BG_sd) + BG_mean)) %>%
-  mutate(CorCt = case_when(CorFl > CycleTh ~ "Y", 
-         CorFl <= CycleTh ~ "N")) -> Rs_spec_BgCor
-
-Rs_eDNA1_total %>% 
-  mutate(CorFl = FAM - BG_cor) %>%
-  mutate(CycleTh = ((10*BG_sd) + BG_mean)) %>%
-  mutate(CorCt = case_when(CorFl > CycleTh ~ "Y", 
-         CorFl <= CycleTh ~ "N")) -> Rs_eDNA1_BgCor
-
-Rs_eDNA2_total %>% 
-  mutate(CorFl = FAM - BG_cor) %>%
-  mutate(CycleTh = ((10*BG_sd) + BG_mean)) %>%
-  mutate(CorCt = case_when(CorFl > CycleTh ~ "Y", 
-         CorFl <= CycleTh ~ "N")) -> Rs_eDNA2_BgCor
-
-#combine the background corrected data
-rbind(Rs_sens1_BgCor, Rs_sens2_BgCor) -> Rs_sens_BgCor
-rbind(Rs_eDNA1_BgCor, Rs_eDNA2_BgCor) -> Rs_eDNA_BgCor
-
-```
 
 
 
-Let's try finding the derivative for each sample and the NTC by using the cumulative sum of the 
-change in Y over the change in x - use this to determine detections/non-detections for the specificity
-```{r derivative - cumulative sum - specificity}
-Rs_spec %>%
-  group_by(Well) %>%
-  mutate(FAMcs = cumsum(FAM)) %>%
-  mutate(FAMfinal = last(FAMcs))-> Rs_spec_FAMcs
-
-Rs_spec_FAMcs %>%
-arrange(Species) %>%
-  mutate(Species = factor(Species, levels=c("R.salmoninarum", "A.globiformis", "A.salmonicida", "C.malta", "F.johnsinae", "F.psychrophilum", "K.varians", "L.aquatica", "M.luteus", "V.ordalii", "Y.ruckeri", "NTC"))) -> Rs_spec_FAMcs
-
-#Rs_spec_FAMcs %>%
-#  group_by(Well) %>%
-#  smooth.spline("Cycle", y="FAMcs") %>%
-#  mutate(pred = predict(spl)) %>%
-#  mutate(FAMcs.prime = diff(FAMcs)/diff(Cycle)) %>%
-#  mutate(pred.prime = predict(spl, deriv=1))-> Rs_spec_FAMcs
-
-
-ggplot(Rs_spec_FAMcs, aes(x=time, y=FAMcs, color=Species)) + geom_point() +
-  ylab(expression("Cumulative Sum of change of Fluorescence"~(Delta *"RFU"))) +
-  xlab("Time (min)")#+
-  #scale_color_jcolors("pal8")
-
-Rs_spec_FAMcs %>% 
-  filter(str_detect(sample, "R.bac")) -> Rs_spec_FAMScs_rs
-Rs_spec_FAMcs %>%
-  filter(!str_detect(sample, "R.bac")) -> Rs_spec_FAMcs_NT
-
-
-```
 Alternate spec plot with just 0 as a threshold
-```{r specificity with 0 as threshold}
+```{r}
 Rs_spec %>%
 arrange(Species) %>%
   mutate(Species = factor(Species, levels=c("R.salmoninarum", "A.globiformis", "A.salmonicida", "C.malta", "F.johnsinae", "F.psychrophilum", "K.varians", "L.aquatica", "M.luteus", "V.ordalii", "Y.ruckeri", "NTC"))) -> Rs_spec
@@ -235,7 +138,14 @@ ggplot(Rs_spec, aes(x=time, y=FAM, color=Species)) +
 ```
 
 
-```{r sensitivity cumulative sum}
+```{r}
+ggplot(Rs_spec, aes(x=time, y=FAM, color=sample)) + geom_point() #+ geom_smooth()
+
+```
+
+
+
+```{r}
 Rs_sens1 %>%
   group_by(Well) %>%
   mutate(FAMcs = cumsum(FAM))  %>%
@@ -254,7 +164,7 @@ ggplot(Rs_sens1_FAMcs, aes(x=time, y=FAMcs, color=sample)) + geom_point() +
   
 ```
 
-```{r sensitivity run 2 cumulative sum}
+```{r}
 Rs_sens2 %>%
   group_by(Well) %>%
   mutate(FAMcs = cumsum(FAM))  %>%
@@ -276,7 +186,7 @@ ggplot(Rs_sens2_FAMcs, aes(x=time, y=FAMcs, color=sample)) + geom_point() +
 
 
 combine the sensitivity
-```{r combine all sensitivity data}
+```{r}
 rbind(Rs_sens1_FAMcs, Rs_sens2_FAMcs) -> Rs_sens
 
 Rs_sens %>%
@@ -321,8 +231,8 @@ ggplot(Rs_sens_all, aes(x=time, y=AvgFl, color=Dilution, shape=isolate)) +
   geom_point() 
 
 ```
-Need to remove the isolates 33209 isolates as they were seeded in water and frozen which appears to be an issue when extraction, multiple extractions failed
-```{r plotting of all sensitivity from cultures}
+Need to remove the isolates 33209 isolates as they were seeded in water and frozen which appears to be an issue
+```{r}
 Rs_sens_all %>%
   filter(!isolate == "R.bac-33209") -> Rs_sens_all_cult
 
@@ -340,11 +250,12 @@ ggplot(Rs_sens_all_cult, aes(x=time, y=AvgFl, color=DilutionFac)) +
   labs(linetype="Isolate") +
   scale_fill_discrete(guide = 'none')
 
-ggsave(filename = "Rs_sens_culture_sensitivity.png", device = 'png', dpi = 700, width = 8, height = 6)
+ggsave(filename = "Rs_sens_culture_sensitivity.tiff", dpi = 700, width = 18,
+       height = 12, units = "cm")
 
 ```
 Remake as facetted graphs
-```{r plot facetted by isolate for ease of visualization}
+```{r}
 Rs_sens_all_cult %>%
   filter(!isolate == "NTC") -> Rs_sens_cult_only
 
@@ -376,8 +287,10 @@ ggplot(Rs_sens_cult_fig, aes(x=time, y=FAM, color=DilutionFac)) +
 ggsave(filename = "Rs_sens_culture_facet.png", device = 'png', dpi = 700, width = 7, height = 7)
 ```
 
+
+
 Need to find the time to crossing zero threshold
-```{r pull out positive for time to detection}
+```{r}
 Rs_sens_all_cult %>%
   group_by(Well,sample) %>%
   #filter(FAM > 0) %>%
@@ -390,7 +303,7 @@ Rs_sens_all_cult %>%
 #Rs_sens_cult_pos$Dilution <- factor(Rs_sens_cult_pos$Dilution, levels = c("1e0","1e-1","1e-2","1e-3","5e-3","1e-4","5e-4","1e-5","5e-5","1e-6","0"))
 
 ggplot(Rs_sens_cult_pos, 
-       aes(x=time, y=log(conc), shape=isolate, color=DilutionFac, fill =DilutionFac)) +
+       aes(x=time, y=log10(conc), shape=isolate, color=DilutionFac, fill =DilutionFac)) +
   geom_point(size=2.5) +
   scale_shape_manual(values = c(22,21,24,23)) +
   #geom_line(aes(linetype=isolate))+
@@ -399,17 +312,29 @@ ggplot(Rs_sens_cult_pos,
   labs(color = "Dilution factor") +
   labs(shape = "Isolate") +
   xlim(0,70) +
-  geom_vline(xintercept = 25, linetype = "dashed", color = "grey36", size = 1)+
-  annotate("text", x = 35 , y=0, vjust = 1, label = "Proposed time cut-off", size = 2.5) +
+  #geom_vline(xintercept = 20, linetype = "dashed", color = "grey36", size = 1)+
+  #annotate("text", x = 25 , y=0, vjust = 1, label = "Time cut-off", size = 2.5) +
   scale_fill_discrete(guide = 'none')
   
 ggsave(filename = "Rs_sens_culture_positives_time.png", device = 'png',dpi = 700, width = 7, height = 5)
 ```
 
+```{r mean time to detect}
+mean(Rs_sens_cult_pos[Rs_sens_cult_pos$DilutionFac == '1e-05', 'time'])
+
+Rs_sens_cult_pos %>%
+  filter(DilutionFac == "1e-05") %>%
+  summarise_at(vars(time), list(name = mean))
+
+Rs_sens_cult_pos %>%
+  filter(DilutionFac == "5e-05") %>%
+  summarise_at(vars(time), list(name = mean))
+
+```
 
 
 let's pull out the Rs-16 data since that was the one that we did qPCR with
-```{r qPCR vs CRISPR df for single isolate}
+```{r}
 Rs_sens_all_cult %>% 
   filter(isolate == "R.bac-M05-51046-90v") -> Rs_sens_16
 Rs_sens_all_cult %>%
@@ -433,14 +358,26 @@ ggplot(Rs_sens_16, aes(x=time, y=FAM, color=DilutionFac)) +
 ```
 
 let's compare the qPCR results to these CRISPR results for Rs-16
-```{r join qPCR data with CRISPR data}
+```{r}
+
+#Rs_sens_16$Dilution <- as.numeric(Rs_sens_16$Dilution)
 
 inner_join(Rs_16_qPCR, Rs_sens_16, by = "Dilution") -> Rs_16_compare
+
+#Rs_16_compare %>%
+  # mutate(isolate = case_when(
+    # str_detect(sample.x, "Rs-16") ~ "R.s.M05-51046-90v")) -> Rs_16_compare
+
+# need to calc copies/uL from the quant which is in copy/qPCR reaction aka 5 ul template
+
+Rs_16_compare %>%
+  mutate(copies.ul = Quantity / 5) %>%
+  relocate(copies.ul, .after = Quantity) -> Rs_16_compare
 
 ```
 
 find the time the CRISPR assay detected Rs-16
-```{r time to detection with copies/ul plot}
+```{r}
 Rs_16_compare %>%
   group_by(Well) %>%
   #filter(FAM > 0) %>%
@@ -454,11 +391,11 @@ Rs_16_compare_Ct %>%
   group_by(DilutionFac) %>%
   summarise(mean = mean(time), sd = sd(time)) %>%
   ungroup() %>%
-  mutate_at(vars("sd"), ~replace_na(.,0)) -> Rs_16_compare_Ct2
+  mutate_at(vars("sd"), ~replace_na(.,0))-> Rs_16_compare_Ct2
 
 left_join(Rs_16_compare_Ct, Rs_16_compare_Ct2, by = "DilutionFac") -> Rs_16_compare_df
 
-ggplot(Rs_16_compare_df, aes(x=mean, y=log(Quantity), color=as.factor(conc))) +
+ggplot(Rs_16_compare_df, aes(x=mean, y=log10(copies.ul), color=as.factor(conc))) +
   geom_point() +
   geom_errorbar(aes(xmin= mean - sd, xmax= mean + sd, width=.2)) +
   #geom_count() +
@@ -470,49 +407,13 @@ ggplot(Rs_16_compare_df, aes(x=mean, y=log(Quantity), color=as.factor(conc))) +
 ggsave(filename = "qPCR-CRISPR-isolate-copy-time.png", device = 'png',dpi = 700, width = 6, height = 4)
 ```
 
-Alternate plot without concentration in black and white
-```{r copies/ul vs time to detect BW}
-ggplot(Rs_16_compare_df, aes(x=mean, y=log(Quantity))) +
-  geom_point(size=2) +
-  geom_errorbar(aes(xmin= mean - sd, xmax= mean + sd, width=.2)) +
-  #geom_count() +
-  scale_size_area(max_size = 8) +
-  xlab("Time (minutes)") +
-  ylab("log10(copy number (copies/ul))") 
-
-ggsave(filename = "Rs-16_copiespertime_BW.png", device = 'png', dpi = 700, width = 4, height = 3)
-
-```
-
-test whether time to detection is related to concentration (not working right at moment)
-```{r}
-Rs_16_compare %>%
-  group_by(Well) %>%
-  #filter(FAM > 0) %>%
-  mutate(CtPos = FAM > 0) %>%
-  filter(CtPos == TRUE) -> Rs_16_comp_pos
-
-anti_join(Rs_16_compare, Rs_16_comp_pos) -> Rs_16_comp_neg
-
-Rs_16_comp_neg %>%
-  filter(time == 120) -> Rs_16_comp_neg1
-
-Rs_16_comp_neg %>%
-  group_by(DilutionFac) %>%
-  summarise(mean = mean(time), sd = sd(time)) %>%
-  ungroup() %>%
-  mutate_at(vars("sd"), ~replace_na(.,0)) -> Rs_16_compare_neg2
-
-left_join(Rs_16_comp_neg, Rs_16_compare_neg2, by = "DilutionFac") -> Rs_16_comp_neg_all
-
-rbind(Rs_16_compare_df, Rs_16_comp_neg_all) -> Rs_16_comp_all
-  
-```
 
 
 let's pull out the ones that cross the threshold to check that they agree with the change in Y detections
-```{r visualize time to detection trend for all sensitivity}
-Rs_sens_BgCor %>%
+```{r}
+
+
+Rs_sens_all %>%
   #filter(CorCt == "Y") %>%
   mutate(isolate = case_when(
         str_detect(sample, "Reni-11") ~ "R.s.Will",
@@ -520,10 +421,10 @@ Rs_sens_BgCor %>%
         str_detect(sample, "Reni-17") ~ "R.s.33209-1",
         str_detect(sample, "Rs-16") ~ "R.s.M05-51046-90v",
         str_detect(sample, "Rs-st1") ~ "R.s.33309-3x10^8-1",
-        str_detect(sample, "Reni-st2") ~ "R.s.33309-3x10^8-2")) -> Rs_sens_BgCor_iso
+        str_detect(sample, "Reni-st2") ~ "R.s.33309-3x10^8-2")) -> Rs_sens_iso
 
 #also find the first time a sample crosses the max threshold
-Rs_sens_BgCor_iso %>%
+Rs_sens_iso %>%
   group_by(sample) %>%
   #filter(FAM > 0) %>%
   mutate(CtPos = FAM > 0) %>%
@@ -552,10 +453,8 @@ logistic regression of probability of crossing the threshold(0) based on concent
 Rs_16_compare %>%
   mutate(Detect = case_when(FAM > 0 ~ 1, 
          FAM <= 0 ~ 0)) -> Rs_16_comp_det
-
-Rs_lm <- glm(Detect ~ Quantity, data = Rs_16_comp_det, family = "binomial")
+Rs_lm <- glm(Detect ~ copies.ul, data = Rs_16_comp_det, family = "binomial")
 summary(Rs_lm)
-
 #time to detection vs detection
 #Rs_lm_time <- glm(Detect ~ time, data = Rs_16_comp_det, family = "binomial")
 #summary(Rs_lm_time)
@@ -563,43 +462,36 @@ summary(Rs_lm)
 
 plotting the logisitic regression
 ```{r prediction of detection vs copy/ul}
-Rs_predict <- data.frame(Quantity=seq(min(Rs_16_comp_det$Quantity), max(Rs_16_comp_det$Quantity), len=500))
-
+Rs_predict <- data.frame(copies.ul=seq(min(Rs_16_comp_det$copies.ul), max(Rs_16_comp_det$copies.ul), len=500))
 Rs_predict$detect <- predict(Rs_lm, Rs_predict, type="response")
-
-Rs_logit <- merge(Rs_16_comp_det, Rs_predict, by="Quantity")
-
-ggplot(Rs_logit, aes(x=Quantity, y=detect)) + 
+Rs_logit <- merge(Rs_16_comp_det, Rs_predict, by="copies.ul")
+ggplot(Rs_logit, aes(x=copies.ul, y=detect)) + 
   geom_point() +
   geom_smooth(method = "glm", 
               method.args = list(family="binomial"), se = FALSE, color = "black") +
   ylab("Probability of detection") +
   xlab("Input concentration (copies/ul)")
-
 ggsave(filename = "Prob_detection_Rs_16.png", device = 'png', dpi = 700, width = 4, height = 3)
 ```
 
 time vs probability of detection
 ```{r}
 Rs_predict_time <- data.frame(time=seq(min(Rs_16_comp_det$time), max(Rs_16_comp_det$time), len=500))
-
 Rs_predict_time$detect <- predict(Rs_lm_time, Rs_predict_time, type="response")
-
 Rs_logit_time <- merge(Rs_16_comp_det, Rs_predict_time, by="time")
-
 ggplot(Rs_logit_time, aes(x=time, y=detect)) + 
   geom_point() +
   geom_smooth(method = "glm", 
               method.args = list(family="binomial"), se = FALSE) +
   ylab("Probability of detection") +
   xlab("Time to detection (min)")
-
 ggsave(filename = "Prob_detection_Rs_16_time.png", device = 'png', dpi = 700, width = 4, height = 3)
 ```
 
 
+
 now do the same for eDNA
-```{r eDNA data handling}
+```{r}
 #need to get the mapping file in order so we can relate it back to the location data from the hatchery
 Rs_eDNA1_map %>%
   mutate(sample.code = case_when(
@@ -659,7 +551,7 @@ rbind(Rs_eDNA1,Rs_eDNA2) -> Rs_eDNA_all
 ```
 
 plot all of the eDNA results 
-```{r eDNA basic plot}
+```{r}
 ggplot(Rs_eDNA_all, aes(x=time, y=FAM, color=sample)) + 
   #geom_point() +
   geom_smooth() +
@@ -668,7 +560,7 @@ ggplot(Rs_eDNA_all, aes(x=time, y=FAM, color=sample)) +
 ```
 
 
-```{r eDNA detections fro 0 threshold}
+```{r}
 Rs_eDNA_all %>%
   #select(Well, sample, plate, FAM) %>%
   group_by(Well, plate) %>%
@@ -678,10 +570,13 @@ Rs_eDNA_detections %>%
   filter(!str_detect(sample.code, "isolate")) -> Rs_eDNA_only
 
 #calc average quantity in the qPCR_results
+Rs_qPCR_results %>%
+  mutate(copies.ul = Quantity / 5) %>%
+  relocate(copies.ul, .after = Quantity) -> Rs_qPCR_results
 Rs_qPCR_results[is.na(Rs_qPCR_results)] <- 0
 Rs_qPCR_results %>%
   group_by(sample) %>%
-  summarise(AVGquant = mean(Quantity, na.rm = TRUE)) %>%
+  summarise(AVGquant = mean(copies.ul, na.rm = TRUE)) %>%
   select(sample, AVGquant) -> Rs_qPCR_results_2
 
 left_join(Rs_qPCR_results, Rs_qPCR_results_2, by = "sample") -> Rs_qPCR_res_avg 
@@ -712,7 +607,7 @@ Rs_eDNA_NonDetect %>%
 ```
 
 let's see which agree in both the positives and the negatives
-```{r agreements between CRISPR and qPCR}
+```{r}
 Rs_eDNA_both_Ct %>%
   filter(AVGquant > 0) -> Rs_eDNA_pos_agree
 #36 agreements on positive
@@ -744,16 +639,18 @@ Rs_eDNA_neg_disagree %>%
 
 
 
-combine the detections and export figure
-```{r plot of eDNA results}
-ggplot(Rs_eDNA_both_Ct, aes(x=time, y=log(Quantity))) +
+combine the detections and export to make a table with metadata
+```{r}
+ggplot(Rs_eDNA_both_Ct, aes(x=time, y=log10(copies.ul))) +
   geom_point(size = 2.5) +
-  geom_hline(yintercept = log(10), linetype = "dashed", color = "grey36", size = 1) +
-  annotate("text", x = 110, y=log(10), vjust = 1, label = "LOD", size = 3.5) +
+  geom_hline(yintercept = log10(1.16), linetype = "dashed", color = "grey36", size = 1) +
+  annotate("text", x = 110, y=log10(1.16), vjust = -1, label = "qPCR LOD", size = 3.5) +
+  geom_hline(yintercept = log10(6.49), linetype = "dotted", color = "grey36", size = 1) +
+  annotate("text", x = 110, y=log10(6.49), vjust = 1.5, label = "Cas12a LOD", size = 3.5) +
   #geom_count() +
   #scale_size_area(max_size = 3) +
   xlab("Time (minutes) to detect via CRISPR") +
-  ylab("log10(copy number via qPCR)") 
+  ylab("log10(copies/uL via qPCR)") 
   #labs(color="Location of sample taken")
 
 ggsave(filename = "Rs-eDNA-qPCR-Cas-compare.png", device='png', dpi = 700, width = 6,
